@@ -78,7 +78,7 @@ class HTML_Template
 			$err = $this->blockArray[$n];
 			throw new Exception("HTML_Template Error: block [$err[type] $err[info]] not ended properly");
 		}
-		$this->blockArray[reset($numStack)]['tmpl'] .= $html;
+		$this->blockArray[$n]['tmpl'] .= $html;
 	}
 
 	protected function getVarName($name)
