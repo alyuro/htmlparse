@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<HTML lang="ru">
+<HEAD>
+	<meta charset="utf-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<title>{title?title.' - '}HTML_Template</title>
+	<style>
+		TABLE { border-collapse: collapse; }
+		TH { padding: 5px 5px; background-color: #444; color: #EEE; text-transform: capitalize }
+		TD { padding: 2px 5px; text-align: right }
+		.even { background-color: #EEE; }
+		.odd  { background-color: #DDD; }
+		.tleft { text-align: left }
+	</style>
+</HEAD>
+
+<BODY>
+	<h1>{title}</h1>
+	<table>
+		<tr>
+			<th>№</th>
+			<!-- FOR city.0 KEY hdr --><th>{hdr}</th><!-- /FOR -->
+			<th>add</th>
+		</tr>
+		<!-- FOR city AS c KEY n -->
+		<tr class="{n%2 ? 'even' : 'odd'}">
+			<td>{n+1}</td>
+			<!--FOR c AS val--><td>{val}</td><!--/FOR-->
+			<td class="tleft">
+				<!-- SET name = c.name -->
+				<!-- IF sel==n--><!-- INCLUDE action.'.inc.html'--><!-- /IF -->
+				<!-- IF sel<>n--><!-- INCLUDE checkbox.inc.html --><!-- /IF -->
+			</td>
+		</tr>
+		<!-- /FOR -->
+	</table>
+</BODY>
+</HTML>
