@@ -6,11 +6,10 @@
 #	Version: 0.5 beta
 #
 #=============================
-
-class HTML_Template 
+class HTML_Template
 {
 	private
-		$vartag = '#\{([A-Za-z][^}]*)\}#', // {var}, {arr.var}, {que ? 'val'}, {que ? var1 : var2}, ...
+		$vartag = '#\{([A-Za-z][A-Za-z_0-9\.]*(\s*[?+\-=*/][^}]*)?)\}#', // {var}, {arr.var}, {que ? 'val'}, {que ? var1 : var2}, ...
 		$blocktag = '#<!--\s*([A-Z\/][A-Z]+)\s*(.*?)\s*-->#', // <!--TAG info--> + <!--/TAG-->
 		$blockerr = '<!--#', // mark for skipped blocks
 		$childMark = '{#HTML_BLOCK_nn#}', // inner tag for template blocks markup
@@ -19,8 +18,8 @@ class HTML_Template
 		$blockArray = array(),
 		$blockLinks = array(),
 		$variable  = array(),
-		$options = array();
-
+		$options = array(),
+		$debug = false;
 	protected
 		$currentBlock = 0,
 		$template_dir = './',
@@ -28,15 +27,16 @@ class HTML_Template
 		$open = '\s+(\w+)',
 		$close_tag = '\s+(\w+)',
 		$html;
-
 //= private ==============================================================
-
+	private function debugMsg($msg)
+	{
+		if ($this->debug) echo $msg;
+	}
 	private function addBlockType($tag_open,$tag_close,$callback)
 	{
 		if ($tag_close) $this->blockClose[$tag_close] = $tag_open;
 		$this->blockFunc[$tag_open] = $callback;
 	}
-
 	private function splitBlocks($html,$n=0)
 	{
 		$numStack[] = $n;
@@ -46,13 +46,11 @@ class HTML_Template
 			'tmpl' => '',
 			'html' => array()
 		);
-
 		while (1)
 		{
 			$buf = preg_split($this->blocktag, $html, 2, PREG_SPLIT_DELIM_CAPTURE);
 			@list($current_block, $type, $info, $next_block) = array_values($buf);
 			if (!$type) break;
-
 			if (@$this->blockFunc[$type]) { // continue current block, push new one
 				$n = end($numStack);
 				$this->blockArray[$n]['tmpl'] .= $current_block;
@@ -65,11 +63,10 @@ class HTML_Template
 				$n = array_pop($numStack);
 				if ($this->blockClose[$type]!=$this->blockArray[$n]['type']) {
 					$err = $this->blockArray[$n];
-					throw new Exception("HTML_Template Error: block [$err[type] $err[info]] can`t be closed by [$type] tag");
+					throw new Exception("HTML_Template Error: block [$err[type] $err[info]] can`t be closed by [$type $info] tag");
 				}
 				$this->blockArray[$n]['tmpl'] .= $current_block;
 			} else { // do nothing, mark block as incorrect
-
 			}
 			$html = $next_block;
 		}
@@ -80,12 +77,10 @@ class HTML_Template
 		}
 		$this->blockArray[$n]['tmpl'] .= $html;
 	}
-
 	protected function getVarName($name)
 	{
 		return '$this->variable["'.str_replace('.','"]["',is_array($name)?reset($name):$name).'"]';
 	}
-
 	protected function parseVar($str)
 	{
 		$info = $str;
@@ -118,12 +113,10 @@ class HTML_Template
 		if (!$this->options['save_vars']) foreach ($aVar as $v) eval("unset(".$this->getVarName($v).");");
 		return $ret;
 	}
-
 	protected function parse_block($n=0)
 	{
 		$parsed = @$this->blockArray[$n]['touch'] || $this->options['save_empty'] ? true : false;
 		unset($this->blockArray[$n]['touch']);
-
 		$tmpl = $this->blockArray[$n]['tmpl'];
 		//- parse inner blocks ---
 		preg_match_all('/\{#HTML_BLOCK_(\d+)#\}/', $tmpl, $subs);
@@ -139,20 +132,20 @@ class HTML_Template
 			if (!$val) continue;
 			$parsed = true;
 		}
+		$this->debugMsg(strlen($tmpl).", ");
 		if ($parsed) $this->blockArray[$n]['html'][] = $tmpl;
 		return $this->blockArray[$n]['html'];
 	}
-
 	protected function parse_include($n)
 	{
 		$fname = $this->blockArray[$n]['info'];
 		if (!file_exists($this->template_dir.$fname))
 		{	$fname = $this->parseVar($fname); }
 		$html = file_get_contents($this->template_dir.$fname);
+		$this->debugMsg("<br>INCLUDE $this->template_dir{$fname} - ".strlen($html));
 		$this->splitBlocks($html,$n);
 		return $this->parse_block($n);
 	}
-
 	protected function parse_for($n)
 	{
 		preg_match('/(\S+)(?:\s+AS\s+(\S+))?(?:\s+KEY\s+(\S+))?/',$this->blockArray[$n]['info'],$buf);
@@ -168,7 +161,6 @@ class HTML_Template
 		if ($var) unset($this->variable[$var]);
 		return $this->blockArray[$n]['html'];
 	}
-
 	protected function parse_if($n)
 	{
 		$ret = $this->parseVar($this->blockArray[$n]['info']);
@@ -176,41 +168,38 @@ class HTML_Template
 		$this->blockArray[$n]['touch'] = true; // is it necessary?
 		return $this->parse_block($n);
 	}
-
 	protected function parse_set($n)
 	{
 		$this->parseVar($this->blockArray[$n]['info']);
 		return array();
 	}
-
 	protected function parse_vars($n)
 	{
-		return array(print_r($this->variable,1));
+		$var = &$this->variable;
+		$nm = $this->blockArray[$n]['info'];
+		if ($nm) eval('$var = &'.$this->getVarName($nm).';');
+		return array(print_r($var,1));
 	}
 //= public ===============================================================
-
 	public function __construct($dir)
 	{
 		$this->template_dir = (substr($dir,-1)=='/') ? $dir : "$dir/";
 		$this->addBlockType('BEGIN','END','parse_block');
 		$this->addBlockType('INCLUDE',null,'parse_include');
-
 		$this->addBlockType('BLOCK','/BLOCK','parse_block');
 		$this->addBlockType('FOR','/FOR','parse_for');
 		$this->addBlockType('IF','/IF','parse_if');
 		$this->addBlockType('SET',null,'parse_set');
 		$this->addBlockType('VARS',null,'parse_vars');
 	}
-
 	public function setOption($option, $value)
 	{
 		$this->options[$option] = $value;
 	}
-
-
 	public function loadTemplatefile( $filename, $saveUsedVariables = true, $saveEmptyBlocks = true )
 	{
 		$html = file_get_contents($this->template_dir.$filename);
+		$this->debugMsg("<br>TEMPLATE $this->template_dir{$filename} - ".strlen($html));
 		$this->splitBlocks($html);
 		$this->options = array(
 			'save_vars'  => $saveUsedVariables ? true : false,
@@ -218,7 +207,6 @@ class HTML_Template
 			'init_includes' => false,
 		);
 	}
-
 	public function setVariable($variable, $value=null)
 	{
 		if (is_array($variable)) {
@@ -229,26 +217,27 @@ class HTML_Template
 		}
 		return true;
 	}
-
 	public function touchBlock($block)
 	{
 		$n = is_numeric($block) ? $block : $this->blockLinks[$block];
 		$this->blockArray[$n]['touch'] = true;
 		return $n>0;
 	}
-
+	public function setCurrentBlock($block)
+	{
+		$this->currentBlock = $block;
+	}
 	public function parseCurrentBlock()
 	{
 		return $this->parse($this->currentBlock);
 	}
-
 	public function parse($block = 0, $flag_recursion = false)
 	{
 		$n = is_numeric($block) ? $block : $this->blockLinks[$block];
+		$this->debugMsg("<br>$n.".$this->blockArray[$n]['type']." [".$this->blockArray[$n]['info']."] - ");
 		$func = $this->blockFunc[ $this->blockArray[$n]['type'] ];
 		return $this->$func($n);
 	}
-
 	public function get($block=0)
 	{
 		$n = is_numeric($block) ? $block : $this->blockLinks[$block];
@@ -257,10 +246,8 @@ class HTML_Template
 		$this->blockArray[$n]['html'] = array(); // empty for new parse
 		return $ret;
 	}
-
 	public function show($block=0)
 	{
 		echo $this->get();
 	}
-
 }
