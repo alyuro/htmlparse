@@ -9,7 +9,7 @@
 class HTML_Template
 {
 	private
-		$vartag = '#\{([A-Za-z][A-Za-z_0-9\.]*(\s*[?+\-=*/][^}]*)?)\}#', // {var}, {arr.var}, {que ? 'val'}, {que ? var1 : var2}, ...
+		$vartag = '#\{([A-Za-z][A-Za-z_\[0-9\]\.]*(\s*[?+\-><=*/][^}]*)?)\}#', // {var}, {arr.var}, {que ? 'val'}, {que ? var1 : var2}, ...
 		$blocktag = '#<!--\s*([A-Z\/][A-Z]+)\s*(.*?)\s*-->#', // <!--TAG info--> + <!--/TAG-->
 		$blockerr = '<!--#', // mark for skipped blocks
 		$childMark = '{#HTML_BLOCK_nn#}', // inner tag for template blocks markup
@@ -89,10 +89,12 @@ class HTML_Template
 		$ret = '';
 		$pos = -1;
 		$aVar = array();
+		if (preg_match_all('/\[([^\]]+)\]/',$str,$res)) // array with variable keys
+		{	foreach ($res[1] as $r) $str = str_replace("[$r]","['".$this->parseVar($r)."']",$str); }
 		for ($n=0; $n<strlen($str); $n++)
 		{	$chr = $str[$n];
-			if (!$quot&&($chr=='"'||$chr=="'")) { $quot = $chr; $pos = -1; }// open quot mode
-			elseif ($quot===$chr) $quot = false;	// close quot mode
+			if (!$quot&&($chr=='"'||$chr=="'"||$chr=='[')) { $quot = $chr; $pos = -1; }// open quot mode
+			elseif ($quot===$chr||$quot=='['&&$chr==']') $quot = false;	// close quot mode
 			elseif ($quot&&$chr=="\\") $n++; // skip slashed quot
 			elseif ($quot) continue; // skip parse in quot mode
 			elseif (!$if&&$chr=='?'||$if&&$chr==':') { $if = !$if; $pos = -1; }
@@ -244,6 +246,7 @@ class HTML_Template
 		$ret = $this->parse($n);
 		$ret = implode('',$ret);
 		$this->blockArray[$n]['html'] = array(); // empty for new parse
+		$ret = preg_replace('/\s+\n/s',"\n",$ret);
 		return $ret;
 	}
 	public function show($block=0)
